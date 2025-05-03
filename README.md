@@ -49,23 +49,23 @@ ENABLE_DRY_RUN=false
 To run the ETL process and retrieve all messages since a specific date:
 
 ```bash
-python -m src.main etl --since 2023-01-01T00:00:00
+python -m message_database.main etl --since 2023-01-01T00:00:00
 ```
 
 To retrieve messages from a specific number of days ago:
 
 ```bash
-python -m src.main etl --days 5
+python -m message_database.main etl --days 5
 ```
 
 ### Convenience Scripts
 
-Several convenience scripts are provided:
+Several convenience scripts are provided in the `scripts` directory:
 
 #### Retrieving Messages from Yesterday
 
 ```bash
-./run_etl_yesterday.sh --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
+./scripts/run_etl_yesterday.sh --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
 ```
 
 Options:
@@ -75,13 +75,13 @@ Options:
 #### Testing the API Connection
 
 ```bash
-./run_tests.sh --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
+./scripts/run_tests.sh --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
 ```
 
 #### Testing Yesterday's Messages
 
 ```bash
-./run_yesterday_test.sh --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
+./scripts/run_yesterday_test.sh --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
 ```
 
 ### Setting Up a Daily Job
@@ -93,12 +93,35 @@ To set up a daily cron job to retrieve new messages:
 crontab -e
 
 # Add a line to run the job at 1:00 AM every day
-0 1 * * * cd /path/to/message-database && ./daily_job.py
+0 1 * * * cd /path/to/message-database && ./scripts/daily_job.py
 ```
 
-## Authentication
+## Project Structure
 
-This application uses OAuth 2.0 client credentials flow to authenticate with the Hostaway API. See the [authentication documentation](docs/authentication.md) for more details.
+```
+message-database/
+├── docs/                  # Documentation
+├── message_database/      # Main package
+│   ├── api/               # API clients
+│   ├── database/          # Database operations
+│   ├── models/            # Data models
+│   ├── pipeline/          # ETL pipeline
+│   ├── scheduler/         # Job scheduler
+│   └── utils/             # Utilities
+├── scripts/               # Shell scripts
+├── tests/                 # Test suite
+├── requirements.txt       # Dependencies
+└── setup.py               # Package setup
+```
+
+## Documentation
+
+For more detailed information, see the documentation in the `docs` directory:
+
+- [Authentication](docs/authentication.md)
+- [ETL Pipeline](docs/etl_pipeline.md)
+- [Architecture](docs/architecture.md)
+- [Deployment](docs/deployment.md)
 
 ## License
 
