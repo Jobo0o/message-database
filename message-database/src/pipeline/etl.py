@@ -144,6 +144,19 @@ class ETLPipeline:
             message_dict = message.to_dict()
             print(f"Converted to dict: {message_dict}")
             
+            # Final conversion to ensure no Decimal remains
+            def convert(obj):
+                from decimal import Decimal
+                if isinstance(obj, Decimal):
+                    return float(obj)
+                elif isinstance(obj, dict):
+                    return {k: convert(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert(i) for i in obj]
+                else:
+                    return obj
+            message_dict = convert(message_dict)
+            
             # Load into MongoDB
             print("Inserting into MongoDB...")
             success = db.insert_message(message_dict)

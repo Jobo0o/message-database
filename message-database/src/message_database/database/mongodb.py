@@ -40,17 +40,7 @@ class MongoDB:
         for attempt in range(max_retries):
             try:
                 logger.info(f"Connecting to MongoDB (attempt {attempt + 1}/{max_retries})...")
-                # Updated MongoDB client configuration with more permissive SSL settings
-                self.client = MongoClient(
-                    MONGODB_URI,
-                    tls=True,
-                    tlsAllowInvalidCertificates=True,  # More permissive SSL setting
-                    serverSelectionTimeoutMS=30000,    # Increased timeout
-                    connectTimeoutMS=30000,            # Increased timeout
-                    socketTimeoutMS=30000,             # Increased timeout
-                    retryWrites=True,
-                    w='majority'
-                )
+                self.client = MongoClient(MONGODB_URI)
                 
                 # Force connection to verify it works
                 self.client.admin.command('ping')
