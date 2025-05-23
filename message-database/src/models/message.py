@@ -52,8 +52,17 @@ class Message(BaseModel):
         return v
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the model to a dictionary suitable for MongoDB."""
-        return self.model_dump(by_alias=True)
+        """Convert the model to a dictionary suitable for MongoDB, converting Decimals to float recursively."""
+        def convert(obj):
+            if isinstance(obj, dict):
+                return {k: convert(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert(i) for i in obj]
+            elif isinstance(obj, Decimal):
+                return float(obj)
+            else:
+                return obj
+        return convert(self.model_dump(by_alias=True))
     
     @classmethod
     def from_api_response(cls, api_data: Dict[str, Any]) -> 'Message':
