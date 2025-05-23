@@ -24,6 +24,12 @@ class Reservation(BaseModel):
     id: str
     price: Optional[Decimal] = None
 
+    @validator('price', pre=True, always=True)
+    def convert_price_to_float(cls, v):
+        if v is not None:
+            return float(v)
+        return v
+
 class Message(BaseModel):
     """Message model representing a communication between host and guest."""
     message_id: str
@@ -52,8 +58,20 @@ class Message(BaseModel):
         return v
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the model to a dictionary suitable for MongoDB."""
-        return self.model_dump(by_alias=True)
+        """Convert the model to a dictionary suitable for MongoDB, converting Decimals to float and handling nested models."""
+        from pydantic import BaseModel
+        def convert(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            elif isinstance(obj, BaseModel):
+                return convert(obj.model_dump(by_alias=True))
+            elif isinstance(obj, dict):
+                return {k: convert(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert(i) for i in obj]
+            else:
+                return obj
+        return convert(self)
     
     @classmethod
     def from_api_response(cls, api_data: Dict[str, Any]) -> 'Message':
