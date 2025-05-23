@@ -6,6 +6,9 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field, validator
 from decimal import Decimal
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Property(BaseModel):
     """Property model representing a vacation rental property."""
@@ -74,37 +77,65 @@ class Message(BaseModel):
         return convert(self)
     
     @classmethod
-    def from_api_response(cls, api_data: Dict[str, Any]) -> 'Message':
-        """
-        Create a Message instance from Hostaway API response data.
+    def from_api_response(cls, api_data: Dict[str, Any]) -> "Message":
+        """Create a Message instance from API response data."""
+        # Log the raw API response for debugging
+        logger.info("Raw API response data: %s", api_data)
         
-        Args:
-            api_data: Raw data from the Hostaway API
-            
-        Returns:
-            Message: A processed Message instance
-        """
-        # This is a placeholder. The actual implementation will depend
-        # on the Hostaway API response format, which will need to be
-        # mapped to our model structure.
-        return cls(
+        # Extract message content from conversationMessages array
+        content = ""
+        if "conversationMessages" in api_data:
+            logger.info("Found conversationMessages: %s", api_data["conversationMessages"])
+            if isinstance(api_data["conversationMessages"], list) and len(api_data["conversationMessages"]) > 0:
+                first_message = api_data["conversationMessages"][0]
+                logger.info("First message in conversation: %s", first_message)
+                if isinstance(first_message, dict):
+                    content = first_message.get("body", "")
+                    logger.info("Extracted content: %s", content)
+
+        # Extract property information
+        property_data = {
+            "id": str(api_data.get("listingMapId", "")),
+            "name": api_data.get("listingName", "")
+        }
+        logger.info("Extracted property data: %s", property_data)
+
+        # Extract guest information
+        guest_data = {
+            "name": api_data.get("recipientName", ""),
+            "email": api_data.get("recipientEmail", ""),
+            "phone": api_data.get("phone"),
+            "nationality": None  # Not available in API response
+        }
+        logger.info("Extracted guest data: %s", guest_data)
+
+        # Extract reservation information
+        reservation_data = None
+        if "Reservation" in api_data:
+            reservation = api_data["Reservation"]
+            logger.info("Found reservation data: %s", reservation)
+            reservation_data = {
+                "id": str(reservation.get("reservationId", "")),
+                "price": float(reservation.get("totalPrice", 0.0))
+            }
+            logger.info("Extracted reservation data: %s", reservation_data)
+
+        # Determine message type
+        message_type = "manual"
+        if api_data.get("type", "").startswith("automated"):
+            message_type = "automated"
+        logger.info("Determined message type: %s", message_type)
+
+        # Create and return the message instance
+        message = cls(
             message_id=str(api_data.get("id", "")),
-            property=Property(
-                id=str(api_data.get("propertyId", "")),
-                name=api_data.get("propertyName", "")
-            ),
-            guest=Guest(
-                name=api_data.get("guestName", ""),
-                email=api_data.get("guestEmail", None),
-                phone=api_data.get("guestPhone", None),
-                nationality=api_data.get("guestNationality", None)
-            ),
-            content=api_data.get("content", ""),
-            timestamp=datetime.fromisoformat(api_data.get("timestamp", datetime.now().isoformat())),
+            property=property_data,
+            guest=guest_data,
+            content=content,
+            timestamp=api_data.get("messageSentOn"),
             direction="incoming" if api_data.get("isIncoming", False) else "outgoing",
-            reservation=Reservation(
-                id=str(api_data.get("reservationId", "")),
-                price=Decimal(str(api_data.get("reservationPrice", 0)))
-            ) if api_data.get("reservationId") else None,
-            message_type="automated" if api_data.get("isAutomated", False) else "manual",
-        ) 
+            reservation=reservation_data,
+            message_type=message_type
+        )
+        logger.info("Created message instance: %s", message.model_dump())
+        return message 
