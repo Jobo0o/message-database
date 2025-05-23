@@ -261,5 +261,17 @@ class HostawayClient:
         response = self._make_request("GET", f"/reservations/{reservation_id}")
         return response.get("result", {})
 
+    def get_conversation_messages(self, conversation_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all messages for a specific conversation.
+        Args:
+            conversation_id: The Hostaway conversation ID
+        Returns:
+            List of message objects (each with content and metadata)
+        """
+        endpoint = f"/conversations/{conversation_id}/messages"
+        response = self._make_request("GET", endpoint)
+        return response.get("result", [])
+
 # Create a singleton instance
 api_client = HostawayClient() 
