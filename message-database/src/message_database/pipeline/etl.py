@@ -4,6 +4,7 @@ Extract, Transform, Load (ETL) pipeline for the Hostaway Message Database applic
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 import traceback
+from decimal import Decimal
 
 from ..api.hostaway_client import api_client, HostawayAPIError
 from ..database.mongodb import db
@@ -91,103 +92,101 @@ class ETLPipeline:
     
     def _process_message(self, message_data: Dict[str, Any]) -> bool:
         """
-        Process a single message by transforming it and loading into the database.
+        Process a single message: transform and load into the database.
         
         Args:
             message_data: Raw message data from the API
             
         Returns:
-            bool: True if successful, False otherwise
+            bool: True if processing was successful, False otherwise
         """
         try:
             # Transform the message data
-            message = self._transform_message(message_data)
+            transformed_data = self._transform_message(message_data)
             
-            # Convert to dictionary for MongoDB
-            message_dict = message.to_dict()
-            # Final conversion to ensure no Decimal remains
-            def convert(obj):
-                from decimal import Decimal
-                if isinstance(obj, Decimal):
-                    return float(obj)
-                elif isinstance(obj, dict):
-                    return {k: convert(v) for k, v in obj.items()}
+            # Create a Message instance from the transformed data
+            message = Message(**transformed_data)
+            
+            # Convert all Decimal values to float recursively
+            def convert_decimals(obj):
+                if isinstance(obj, dict):
+                    return {k: convert_decimals(v) for k, v in obj.items()}
                 elif isinstance(obj, list):
-                    return [convert(i) for i in obj]
+                    return [convert_decimals(i) for i in obj]
+                elif isinstance(obj, Decimal):
+                    return float(obj)
                 else:
                     return obj
-            message_dict = convert(message_dict)
-            # Load into MongoDB
-            success = db.insert_message(message_dict)
-            
-            if not success:
-                logger.error(f"Failed to insert message with ID: {message.message_id}")
-                return False
+
+            message_dict = convert_decimals(message.dict())
+
+            # Load into database
+            db.insert_message(message_dict)
             
             return True
             
         except Exception as e:
-            message_id = message_data.get("id", "unknown")
-            logger.error(f"Error processing message {message_id}: {str(e)}")
+            logger.error(f"Error processing message: {str(e)}")
+            logger.error(traceback.format_exc())
             return False
     
-    def _transform_message(self, message_data: Dict[str, Any]) -> Message:
+    def _transform_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Transform raw API message data into a Message object.
-        Enriches the message with property and reservation details if needed.
+        Transform raw message data into a structured format.
         
         Args:
             message_data: Raw message data from the API
             
         Returns:
-            Message: A processed Message instance
+            Dict: Transformed message data
         """
+        logger.info(f"Processing message data: {message_data}")
+        
+        # Get conversation messages
+        conversation_id = str(message_data.get("id"))
+        conversation_messages = api_client.get_conversation_messages(conversation_id)
+        
+        # Extract message content from the first message if available
+        content = ""
+        if conversation_messages and len(conversation_messages) > 0:
+            first_message = conversation_messages[0]
+            content = first_message.get("body", "")
+        
         # Extract property details
-        property_id = str(message_data.get("listingId", ""))
-        property_name = message_data.get("listingName", "")
+        property_id = str(message_data.get("listingMapId", ""))
+        property_details = api_client.get_property_details(property_id)
         
-        # If we have a property ID but no name, fetch property details
-        if property_id and not property_name:
-            try:
-                property_details = api_client.get_property_details(property_id)
-                property_name = property_details.get("name", "")
-            except HostawayAPIError as e:
-                logger.warning(f"Could not fetch property details for ID {property_id}: {str(e)}")
-        
-        # Extract reservation details
+        # Extract reservation details if available
         reservation_id = str(message_data.get("reservationId", ""))
-        reservation_price = None
-        
-        # If we have a reservation ID, fetch its details
+        reservation_details = None
         if reservation_id:
-            try:
-                reservation_details = api_client.get_reservation_details(reservation_id)
-                reservation_price = reservation_details.get("totalPrice")
-            except HostawayAPIError as e:
-                logger.warning(f"Could not fetch reservation details for ID {reservation_id}: {str(e)}")
+            reservation_details = api_client.get_reservation_details(reservation_id)
         
-        # Create and return a Message object
-        return Message(
-            message_id=str(message_data.get("id", "")),
-            property=Property(
-                id=property_id,
-                name=property_name
-            ),
-            guest=Guest(
-                name=message_data.get("guestName", ""),
-                email=message_data.get("guestEmail", None),
-                phone=message_data.get("guestPhoneNumber", None),
-                nationality=message_data.get("guestNationality", None)
-            ),
-            content=message_data.get("content", ""),
-            timestamp=datetime.fromisoformat(message_data.get("timestamp", datetime.now().isoformat())),
-            direction="incoming" if message_data.get("isIncoming", False) else "outgoing",
-            reservation=Reservation(
-                id=reservation_id,
-                price=float(reservation_price) if reservation_price is not None else None
-            ) if reservation_id else None,
-            message_type="automated" if message_data.get("isAutomated", False) else "manual",
-        )
+        # Create transformed message data
+        transformed_data = {
+            "message_id": conversation_id,
+            "property": {
+                "id": property_id,
+                "name": property_details.get("name", "")
+            },
+            "guest": {
+                "name": message_data.get("recipientName", ""),
+                "email": message_data.get("recipientEmail"),
+                "phone": message_data.get("phone"),
+                "nationality": None  # Not available in API response
+            },
+            "content": content,
+            "timestamp": datetime.fromisoformat(message_data.get("messageSentOn", datetime.now().isoformat())),
+            "direction": "incoming" if message_data.get("type", "").startswith("guest") else "outgoing",
+            "reservation": {
+                "id": reservation_id,
+                "price": Decimal(str(reservation_details.get("totalPrice", 0))) if reservation_details else Decimal("0")
+            } if reservation_id else None,
+            "message_type": "automated" if message_data.get("type", "").startswith("automated") else "manual"
+        }
+        
+        logger.info(f"Transformed message data: {transformed_data}")
+        return transformed_data
 
 # Create a singleton instance
 pipeline = ETLPipeline() 
