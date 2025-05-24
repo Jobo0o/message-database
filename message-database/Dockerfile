@@ -31,8 +31,11 @@ RUN chmod 0644 /etc/cron.d/daily_job
 RUN crontab /etc/cron.d/daily_job
 USER appuser
 
-# Command to run the application
-CMD ["python", "-m", "src.main", "etl"]
+# Copy the entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Alternative command to run with cron for production
-# CMD ["bash", "-c", "cron && tail -f /app/logs/cron.log"] 
+# Command to run the application (API server)
+# The cron service will be started by entrypoint.sh
+CMD ["uvicorn", "src.api_v2.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

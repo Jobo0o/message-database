@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Database Viewer</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <h1>Message Database Viewer</h1>
+
+    <!-- Instructions -->
+    <!--
+        To run this frontend:
+        1. Ensure the backend FastAPI application (API V2) is running (e.g., on http://localhost:8000).
+        2. Open this index.html file in your web browser.
+    -->
+
+    <div class="controls">
+        <h2>Fetch Message by ID</h2>
+        <input type="text" id="messageIdInput" placeholder="Enter Message ID">
+        <button id="fetchByIdButton">Fetch Message</button>
+        <div id="singleMessageContainer"></div>
+    </div>
+
+    <hr>
+
+    <div class="controls">
+        <h2>All Messages</h2>
+        <button id="prevButton">Previous</button>
+        <button id="nextButton">Next</button>
+        <span id="currentPage">Page: 1</span>
+    </div>
+    <div id="messages-container">
+        <!-- Messages will be loaded here by JavaScript -->
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -25,6 +25,13 @@ The application follows an ETL (Extract, Transform, Load) architecture pattern:
                              +---------------------+
 ```
 
+The architecture now also includes a Frontend Application and a Message Query API (API V2) that interact with the Load component (MongoDB).
+
+*   **Frontend Application:** A web-based UI allowing users to view messages. It fetches data from the Message Query API (API V2).
+*   **Message Query API (API V2):** A FastAPI application providing RESTful endpoints to query messages stored in MongoDB.
+
+These components extend the system's capabilities from a purely ETL-focused application to one that also offers data access and visualization.
+
 ### 1.2 Component Breakdown
 
 1. **Extract Component**
@@ -52,7 +59,42 @@ The application follows an ETL (Extract, Transform, Load) architecture pattern:
    - Key modules: `utils/logger.py`, `config.py`
    - Functions: Logging, configuration, error notification
 
+6. **Message Query API (API V2)**
+   - Purpose: Provides RESTful HTTP endpoints for querying messages stored in the MongoDB database.
+   - Key technologies: FastAPI, Pydantic.
+   - Key modules: `src/api_v2/main.py`.
+   - Endpoints:
+     - `GET /`: Root endpoint for API V2.
+     - `GET /messages`: Lists messages with pagination.
+     - `GET /messages/{message_id}`: Retrieves a specific message by its ID.
+   - Interaction: Relies on the Load Component (MongoDB via `src/database/mongodb.py`) to fetch data.
+   - Documentation: Provides auto-generated interactive API documentation (Swagger UI/OpenAPI) at its `/docs` endpoint.
+
+7. **Frontend Application**
+   - Purpose: Offers a user-friendly web interface for viewing messages from the database.
+   - Key technologies: HTML, CSS, JavaScript.
+   - Key files: `frontend/index.html`, `frontend/css/style.css`, `frontend/js/app.js`.
+   - Serving: Served as static files by the Message Query API (API V2) itself, accessible via the `/ui/` path.
+   - Interaction: Communicates with the Message Query API (API V2) to fetch and display messages.
+
 ## 2. Data Flow
+
+The original ETL data flow (Initial Data Load and Incremental Updates) remains the same. The new components introduce a query-specific data flow:
+
+### 2.1 ETL Data Flow (Initial and Incremental)
+This remains as described previously, focusing on getting data *into* MongoDB.
+
+### 2.2 Query Data Flow (API V2 and Frontend)
+
+1.  **User Interaction:** A user accesses the Frontend Application in their web browser (e.g., `http://localhost:8000/ui/`).
+2.  **Frontend Request:** The JavaScript in the Frontend Application makes an HTTP request to the Message Query API (API V2) (e.g., to `GET /api_v2/messages` or `GET /api_v2/messages/{message_id}`).
+3.  **API V2 Processing:**
+    *   The FastAPI application receives the request.
+    *   The relevant endpoint in `src/api_v2/main.py` is triggered.
+    *   The endpoint uses the `src/database/mongodb.py` module (Load Component) to query MongoDB.
+4.  **MongoDB Response:** MongoDB returns the requested data (list of messages or a single message) to the API V2.
+5.  **API V2 Response:** The API V2 serializes the data (using Pydantic models) into a JSON HTTP response and sends it back to the Frontend Application.
+6.  **Frontend Display:** The JavaScript in the Frontend Application receives the JSON data and dynamically updates the HTML to display the messages to the user.
 
 ### 2.1 Initial Data Load
 
@@ -188,6 +230,8 @@ The API client implements robust error handling:
 
 ## 8. Deployment
 
+The deployment section should be updated to consider how the API V2 and its frontend are run.
+
 ### 8.1 Docker Deployment
 
 The application is containerized with Docker:
@@ -209,6 +253,18 @@ For production deployment with automated job:
 ```
 docker run --env-file .env -v logs:/app/logs hostaway-message-db bash -c "cron && tail -f /app/logs/cron.log"
 ```
+   To run the API V2 and frontend (which are part of the same FastAPI application process as the ETL if structured that way, or could be a separate process):
+   If API V2 is part of the main application:
+   The Docker container would need to expose the API port (e.g., 8000) and run Uvicorn.
+   ```bash
+   # Example: If uvicorn runs the src.api_v2.main:app
+   docker run -p 8000:8000 --env-file .env -v logs:/app/logs hostaway-message-db \
+     bash -c "uvicorn src.api_v2.main:app --host 0.0.0.0 --port 8000 & cron && tail -f /app/logs/cron.log /app/logs/uvicorn.log"
+   ```
+   A more robust setup might use a process manager like Supervisor within Docker, or separate Docker containers for the ETL/scheduler and the API. The current setup runs `src.api_v2.main:app` which includes the API and frontend.
+
+### 8.2 Cron Setup
+The cron setup remains relevant for the ETL part. If the API is run in the same container, the cron job continues to function alongside the web server.
 
 ## 9. Monitoring and Maintenance
 
@@ -227,8 +283,8 @@ docker run --env-file .env -v logs:/app/logs hostaway-message-db bash -c "cron &
 
 ## 10. Future Enhancements
 
-- Add a REST API for querying the message database
+- Add a REST API for querying the message database (This is now implemented as API V2)
 - Implement sentiment analysis on message content
-- Create a dashboard for visualizing message patterns
+- Create a dashboard for visualizing message patterns (The simple frontend is a first step)
 - Add support for additional Hostaway data entities
 - Implement full audit logging of API interactions 

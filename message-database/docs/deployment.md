@@ -109,13 +109,36 @@ For production environments, use Docker to containerize the application:
 
 4. **Run the container for initial data load:**
    ```bash
-   docker run --env-file .env -v $(pwd)/logs:/app/logs hostaway-message-db
+   docker run --env-file .env -v $(pwd)/logs:/app/logs hostaway-message-db python -m src.main etl
    ```
+   (Note: The default CMD in the Dockerfile is now to start the Uvicorn server, so to run ETL only, you'd override the command as shown above or use a separate ETL-focused Dockerfile/service).
 
-5. **Run the container with automated updates:**
+5. **Run the container to serve the API and Frontend, with automated ETL updates:**
+   The updated Dockerfile uses an `entrypoint.sh` script that starts the `cron` service in the background and then starts the `uvicorn` server for the API V2 and frontend.
    ```bash
-   docker run -d --name hostaway-messages --env-file .env -v $(pwd)/logs:/app/logs hostaway-message-db bash -c "cron && tail -f /app/logs/cron.log"
+   docker run -d --name hostaway-app -p 8000:8000 --env-file .env -v $(pwd)/logs:/app/logs hostaway-message-db
    ```
+   - `-d`: Runs the container in detached mode.
+   - `--name hostaway-app`: Assigns a name to the container.
+   - `-p 8000:8000`: Maps port 8000 of the host to port 8000 of the container (where Uvicorn runs).
+   - `--env-file .env`: Loads environment variables from your `.env` file.
+   - `-v $(pwd)/logs:/app/logs`: Mounts the local `logs` directory into the container's `/app/logs` directory.
+   
+   With this setup:
+   - The API V2 will be accessible at `http://<your-docker-host-ip>:8000/api_v2/`.
+   - The Frontend will be accessible at `http://<your-docker-host-ip>:8000/ui/`.
+   - The cron job for daily ETL (defined in the Dockerfile) will run as scheduled, logging to `/app/logs/cron.log` inside the container (and thus to your mounted `logs` directory).
+
+6. **Manually running ETL jobs:**
+   If you need to run an ETL job manually (e.g., for a specific date range) while the API container is running:
+   ```bash
+   docker exec -it hostaway-app python -m src.main etl --days 7 
+   ```
+   Or, to run the `daily_job.py` script (which typically handles "yesterday's" data):
+   ```bash
+   docker exec -it hostaway-app python daily_job.py
+   ```
+   Output and logs from these manual runs will appear in the container's stdout/stderr (viewable with `docker logs hostaway-app`) and potentially in the application's log files within `/app/logs`.
 
 ### Option 3: Cloud Deployment (AWS EC2)
 
@@ -155,8 +178,10 @@ For a scalable cloud deployment:
 6. **Build and run the Docker container:**
    ```bash
    docker build -t hostaway-message-db .
-   docker run -d --name hostaway-messages --restart always --env-file .env -v $(pwd)/logs:/app/logs hostaway-message-db bash -c "cron && tail -f /app/logs/cron.log"
+   # Run the container as described in "Option 2: Docker Deployment", step 5.
+   docker run -d --name hostaway-app -p 8000:8000 --restart always --env-file .env -v $(pwd)/logs:/app/logs hostaway-message-db
    ```
+   Ensure your EC2 instance's security group allows inbound traffic on port 8000.
 
 7. **Set up log rotation:**
    ```bash
@@ -252,7 +277,7 @@ If you have a large number of messages, you can load data incrementally:
    docker build -t hostaway-message-db .
    docker stop hostaway-messages
    docker rm hostaway-messages
-   docker run -d --name hostaway-messages --restart always --env-file .env -v $(pwd)/logs:/app/logs hostaway-message-db bash -c "cron && tail -f /app/logs/cron.log"
+   docker run -d --name hostaway-app --restart always --env-file .env -v $(pwd)/logs:/app/logs hostaway-message-db
    ```
 
 2. **Backup your data:**
@@ -281,9 +306,9 @@ If you have a large number of messages, you can load data incrementally:
    - Ensure the logs volume is accessible
 
 4. **Cron Job Not Running:**
-   - Check cron logs: `grep CRON /var/log/syslog`
-   - Verify the cron job is correctly configured in the Dockerfile
-   - Check if the container has permission to run cron
+   - Check cron logs within the container or the mounted log volume: `tail -f logs/cron.log`
+   - Verify the cron job is correctly configured in the Dockerfile and `entrypoint.sh` starts the cron service.
+   - Check if the container has permission to run cron (should be handled by `USER root` for cron setup in Dockerfile).
 
 ### Getting Support
 
