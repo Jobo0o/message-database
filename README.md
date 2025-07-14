@@ -116,12 +116,19 @@ message-database/
 
 ## Documentation
 
-For more detailed information, see the documentation in the `docs` directory:
+📚 **[Complete Documentation Available](message-database/docs/README.md)**
 
-- [Authentication](docs/authentication.md)
-- [ETL Pipeline](docs/etl_pipeline.md)
-- [Architecture](docs/architecture.md)
-- [Deployment](docs/deployment.md)
+For comprehensive documentation with examples, troubleshooting, and detailed API reference, visit the [documentation index](message-database/docs/README.md).
+
+### Quick Links
+
+- **[🚀 Quickstart Guide](message-database/docs/quickstart_guide.md)** - Get started in minutes
+- **[📋 API Reference](message-database/docs/api_reference.md)** - Complete API documentation with examples
+- **[🔧 Troubleshooting](message-database/docs/troubleshooting.md)** - Common issues and solutions
+- **[🏗️ Architecture](message-database/docs/architecture.md)** - System design and components
+- **[📊 ETL Pipeline](message-database/docs/etl_pipeline.md)** - Detailed ETL process documentation
+- **[🚀 Deployment](message-database/docs/deployment.md)** - Production deployment guide
+- **[✅ Authentication](message-database/docs/authentication.md)** - API authentication setup
 
 ## License
 
